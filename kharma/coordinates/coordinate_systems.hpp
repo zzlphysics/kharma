@@ -79,6 +79,7 @@ class CartMinkowskiCoords {
         static constexpr char name[] = "CartMinkowskiCoords";
         static constexpr bool spherical = false;
         static constexpr GReal a = 0.0;
+        static constexpr GReal kzeta = 0.0;
         KOKKOS_INLINE_FUNCTION void gcov_embed(const GReal Xembed[GR_DIM], Real gcov[GR_DIM][GR_DIM]) const
         {
             DLOOP2 gcov[mu][nu] = (mu == nu) - 2*(mu == 0 && nu == 0);
@@ -93,6 +94,7 @@ class SphMinkowskiCoords {
         static constexpr char name[] = "SphMinkowskiCoords";
         static constexpr bool spherical = true;
         static constexpr GReal a = 0.0;
+        static constexpr GReal kzeta = 0.0;
         KOKKOS_INLINE_FUNCTION void gcov_embed(const GReal Xembed[GR_DIM], Real gcov[GR_DIM][GR_DIM]) const
         {
             const GReal r = m::max(Xembed[1], SMALL);
@@ -115,6 +117,7 @@ class SphKSCoords {
         static constexpr char name[] = "SphKSCoords";
         // BH Spin is a property of KS
         const GReal a;
+        static constexpr GReal kzeta = 0.0;
         static constexpr bool spherical = true;
 
         KOKKOS_FUNCTION SphKSCoords(GReal spin): a(spin) {};
@@ -179,6 +182,104 @@ class SphKSCoords {
 };
 
 /**
+ * Spherical Kerr-Schild coordinates for KZ-BH
+ */
+class SphKZCoords {
+    public:
+        static constexpr char name[] = "SphKZCoords";
+        // BH Spin is a property of KS
+        const GReal a;
+        const GReal kzeta;
+        static constexpr bool spherical = true;
+
+        KOKKOS_FUNCTION SphKZCoords(GReal spin, GReal kzeta_in): a(spin), kzeta(kzeta_in) {};
+
+        KOKKOS_INLINE_FUNCTION void gcov_embed(const GReal Xembed[GR_DIM], Real gcov[GR_DIM][GR_DIM]) const
+        {
+            const GReal r = Xembed[1];
+            const GReal th = excise(excise(Xembed[2], 0.0, SMALL), M_PI, SMALL);
+
+            const GReal cth = m::cos(th);
+            const GReal sth = m::sin(th);
+            const GReal sin2 = sth*sth;
+            const GReal cos2 = cth*cth;
+            const GReal rho2 = r*r + a*a*cos2;
+            const GReal rho2r = r*rho2;
+            const GReal mre = 2.0 * r*r + kzeta;
+            const GReal mrre = -2.0*r*r*r*r - 3.0*r*r*kzeta + a*a*(2.0*r*r - kzeta)*cos2;
+
+
+            gcov[0][0] = -1.0 + mre/rho2r;
+            gcov[0][1] = mre/rho2r;
+            gcov[0][2] = 0.0;
+            gcov[0][3] = -((a*mre*sin2)/rho2r);
+
+            gcov[1][0] = mre/rho2r;
+            gcov[1][1] = 1.0 + mre/rho2r;
+            gcov[1][2] = 0.0;
+            gcov[1][3] = -((a*(mre + rho2r)*sin2)/rho2r);
+
+            gcov[2][0] = 0.0;
+            gcov[2][1] = 0.0;
+            gcov[2][2] = rho2;
+            gcov[2][3] = 0.0;
+
+            gcov[3][0] = -((a*mre*sin2)/rho2r);
+            gcov[3][1] = -((a*(mre + rho2r)*sin2)/rho2r);
+            gcov[3][2] = 0.0;
+            gcov[3][3] = (r*(a*a + r*r)*(a*a + r*r)*sin2 + a*a*(-(r*(a*a + r*(-2.0 + r))) + kzeta)*sin2*sin2)/rho2r; 
+            // (r*r*r*r*sin2*sin2 + a*a*(-(r*r*(2.0*mre + rho2r)) + eta)*sin2*sin2)/rho2r;
+
+            // gcov[0][0] = -1. + 2.*r/rho2;
+            // gcov[0][1] = 2.*r/rho2;
+            // gcov[0][2] = 0.;
+            // gcov[0][3] = -2.*a*r*sin2/rho2;
+
+            // gcov[1][0] = 2.*r/rho2;
+            // gcov[1][1] = 1. + 2.*r/rho2;
+            // gcov[1][2] = 0.;
+            // gcov[1][3] = -a*sin2*(1. + 2.*r/rho2);
+
+            // gcov[2][0] = 0.;
+            // gcov[2][1] = 0.;
+            // gcov[2][2] = rho2;
+            // gcov[2][3] = 0.;
+
+            // gcov[3][0] = -2.*a*r*sin2/rho2;
+            // gcov[3][1] = -a*sin2*(1. + 2.*r/rho2);
+            // gcov[3][2] = 0.;
+            // gcov[3][3] = sin2*(rho2 + a*a*sin2*(1. + 2.*r/rho2));
+        }
+
+        // For converting from BL
+        KOKKOS_INLINE_FUNCTION void vec_from_bl(const GReal Xembed[GR_DIM], const Real vcon_bl[GR_DIM], Real vcon[GR_DIM]) const
+        {
+            GReal r = Xembed[1];
+            Real trans[GR_DIM][GR_DIM];
+            DLOOP2 trans[mu][nu] = (mu == nu);
+            trans[0][1] = (2.*r + kzeta/r)/(r*r - 2.*r + a*a - kzeta/r);
+            trans[3][1] = a/(r*r - 2.*r + a*a - kzeta/r);
+
+            gzero(vcon);
+            DLOOP2 vcon[mu] += trans[mu][nu]*vcon_bl[nu];
+        }
+
+        KOKKOS_INLINE_FUNCTION void vec_to_bl(const GReal Xembed[GR_DIM], const Real vcon_bl[GR_DIM], Real vcon[GR_DIM]) const
+        {
+            GReal r = Xembed[1];
+            GReal rtrans[GR_DIM][GR_DIM], trans[GR_DIM][GR_DIM];
+            DLOOP2 rtrans[mu][nu] = (mu == nu);
+            rtrans[0][1] = (2.*r + kzeta/r)/(r*r - 2.*r + a*a - kzeta/r);
+            rtrans[3][1] = a/(r*r - 2.*r + a*a - kzeta/r);
+
+            invert(&rtrans[0][0], &trans[0][0]);
+
+            gzero(vcon);
+            DLOOP2 vcon[mu] += trans[mu][nu]*vcon_bl[nu];
+        }
+};
+
+/**
  * Spherical Kerr-Schild coordinates w/ external gravity term
  */
 class SphKSExtG {
@@ -186,6 +287,7 @@ class SphKSExtG {
         static constexpr char name[] = "SphKSExtG";
         // BH Spin is a property of KS
         const GReal a;
+        static constexpr GReal kzeta = 0.0;
         static constexpr bool spherical = true;
 
         static constexpr GReal A = 4.24621057e-9; //1.46797639e-8;
@@ -270,6 +372,7 @@ class SphBLCoords {
         static constexpr char name[] = "SphBLCoords";
         // BH Spin is a property of BL
         const GReal a;
+        static constexpr GReal kzeta = 0.0;
         static constexpr bool spherical = true;
 
         KOKKOS_FUNCTION SphBLCoords(GReal spin): a(spin) {}
@@ -307,6 +410,7 @@ class SphBLExtG {
         static constexpr char name[] = "SphBLExtG";
         // BH Spin is a property of BL
         const GReal a;
+        static constexpr GReal kzeta = 0.0;
         static constexpr bool spherical = true;
 
         static constexpr GReal A = 4.24621057e-9; //1.46797639e-8;
@@ -335,6 +439,45 @@ class SphBLExtG {
             gcov[3][0]  = -2.*a*sin2/(r*mmu);
             gcov[3][3]   = sin2*(r2 + a2 + 2.*a2*sin2/(r*mmu));
         }
+};
+
+/**
+ * Boyer-Lindquist coordinates for KZ-BH as an embedding system
+ */
+class SphBLKZCoords {
+    public:
+        static constexpr char name[] = "SphBLKZCoords";
+        // BH Spin is a property of BL
+        const GReal a;
+        const GReal kzeta;
+        static constexpr bool spherical = true;
+
+        KOKKOS_FUNCTION SphBLKZCoords(GReal spin, GReal kzeta_in): a(spin), kzeta(kzeta_in) {}
+
+        KOKKOS_INLINE_FUNCTION void gcov_embed(const GReal Xembed[GR_DIM], Real gcov[GR_DIM][GR_DIM]) const
+        {
+            const GReal r = Xembed[1];
+            const GReal th = excise(excise(Xembed[2], 0.0, SMALL), M_PI, SMALL);
+            const GReal cth = m::cos(th), sth = m::sin(th);
+
+            const GReal sin2 = sth*sth;
+            const GReal a2 = a*a;
+            const GReal r2 = r*r;
+            const GReal r3 = r2*r;
+            // TODO(BSP) this and gcov_embed for KS should look more similar...
+            const GReal mmu = 1. + a2*cth*cth/r2; // mu is taken as an index
+
+            gzero2(gcov);
+            gcov[0][0]  = -(1. - (2.+kzeta/r2)/(r*mmu));
+            gcov[0][3]  = -(2.+kzeta/r2)*a*sin2/(r*mmu);
+            gcov[1][1]   = mmu/(1. - 2./r + a2/r2 - kzeta/r3);
+            gcov[2][2]   = r2*mmu;
+            gcov[3][0]  = -(2.+kzeta/r2)*a*sin2/(r*mmu);
+            gcov[3][3]   = sin2*(r2 + a2 + (2.+kzeta/r2)*a2*sin2/(r*mmu));
+        }
+
+        // TODO(BSP) vec to/from ks, put guaranteed ks/bl fns into embedding
+
 };
 
 /**
@@ -743,5 +886,5 @@ class WidepoleTransform {
 // Bundle coordinates and transforms into umbrella variant types
 // These act as a wannabe "interface" or "parent class" with the exception that access requires "mpark::visit"
 // See coordinate_embedding.hpp
-using SomeBaseCoords = mpark::variant<SphMinkowskiCoords, CartMinkowskiCoords, SphBLCoords, SphKSCoords, SphBLExtG, SphKSExtG>;
+using SomeBaseCoords = mpark::variant<SphMinkowskiCoords, CartMinkowskiCoords, SphBLCoords, SphKSCoords, SphBLExtG, SphKSExtG, SphKZCoords, SphBLKZCoords>;
 using SomeTransform = mpark::variant<NullTransform, SphNullTransform, ExponentialTransform, SuperExponentialTransform, ModifyTransform, FunkyTransform, WidepoleTransform>;

@@ -94,6 +94,10 @@ class CoordinateEmbedding {
                 base.emplace<SphBLCoords>(mpark::get<SphBLCoords>(base_in));
             } else if (mpark::holds_alternative<SphKSCoords>(base_in)) {
                 base.emplace<SphKSCoords>(mpark::get<SphKSCoords>(base_in));
+            } else if (mpark::holds_alternative<SphKZCoords>(base_in)) {
+                base.emplace<SphKZCoords>(mpark::get<SphKZCoords>(base_in));
+            } else if (mpark::holds_alternative<SphBLKZCoords>(base_in)) {
+                base.emplace<SphBLKZCoords>(mpark::get<SphBLKZCoords>(base_in));
             } else if (mpark::holds_alternative<SphKSExtG>(base_in)) {
                 base.emplace<SphKSExtG>(mpark::get<SphKSExtG>(base_in));
             } else if (mpark::holds_alternative<SphBLExtG>(base_in)) {
@@ -138,6 +142,10 @@ class CoordinateEmbedding {
                 } else {
                     base.emplace<SphKSCoords>(SphKSCoords(a));
                 }
+            } else if (base_str == "spherical_kz" || base_str == "kz") {
+                GReal a = pin->GetReal("coordinates", "a");
+                GReal kzeta = pin->GetReal("coordinates", "kzeta");
+                base.emplace<SphKZCoords>(SphKZCoords(a, kzeta));
             } else if (base_str == "spherical_bl" || base_str == "bl" ||
                         base_str == "spherical_bl_extg" || base_str == "bl_extg") {
                 GReal a = pin->GetReal("coordinates", "a");
@@ -148,6 +156,10 @@ class CoordinateEmbedding {
                 } else {
                     base.emplace<SphBLCoords>(SphBLCoords(a));
                 }
+            } else if (base_str == "spherical_bl_kz" || base_str == "bl_kz") {
+                GReal a = pin->GetReal("coordinates", "a");
+                GReal kzeta = pin->GetReal("coordinates", "kzeta");
+                base.emplace<SphBLKZCoords>(SphBLKZCoords(a, kzeta));
             } else {
                 throw std::invalid_argument("Unsupported base coordinates!");
             }
@@ -252,6 +264,32 @@ class CoordinateEmbedding {
                 mpark::holds_alternative<SphBLExtG>(base)) {
                 const GReal a = get_a();
                 return 1 + m::sqrt(1 - a * a);
+            } else if (mpark::holds_alternative<SphKZCoords>(base) ||
+                       mpark::holds_alternative<SphBLKZCoords>(base)) {
+                const GReal a = get_a();
+                const GReal kzeta = get_kzeta();
+                // std::cout << "a: " << a << " kzeta: " << kzeta << std::endl;
+                // std::cout << "kharma horizon!" << std::endl;
+                if ((-4*m::pow(a,4) + 4*m::pow(a,6) - 36*a*a*kzeta + kzeta*(32 + 27*kzeta))>=0){
+                    // const GReal rh = ((4 - (2*(-4 + 3*a*a))/
+                    //         m::pow(8 - 9*a*a + (27*kzeta)/2. + (3*m::sqrt(3)*
+                    //         m::sqrt(-4*m::pow(a,4) + 4*m::pow(a,6) - 36*a*a*kzeta + kzeta*(32 + 27*kzeta)))/2.,0.3333333333333333) + 
+                    //         m::pow(2,0.6666666666666666)*m::pow(16 - 18*a*a + 27*kzeta + 
+                    //         3*m::sqrt(3)*m::sqrt(-4*m::pow(a,4) + 4*m::pow(a,6) - 36*a*a*kzeta + kzeta*(32 + 27*kzeta)),0.3333333333333333))/6.);
+                    // std::cout << "kharma horizon: " << rh << std::endl;
+                    return ((4 - (2*(-4 + 3*a*a))/
+                            m::pow(8 - 9*a*a + (27*kzeta)/2. + (3*m::sqrt(3)*
+                            m::sqrt(-4*m::pow(a,4) + 4*m::pow(a,6) - 36*a*a*kzeta + kzeta*(32 + 27*kzeta)))/2.,0.3333333333333333) + 
+                            m::pow(2,0.6666666666666666)*m::pow(16 - 18*a*a + 27*kzeta + 
+                            3*m::sqrt(3)*m::sqrt(-4*m::pow(a,4) + 4*m::pow(a,6) - 36*a*a*kzeta + kzeta*(32 + 27*kzeta)),0.3333333333333333))/6.);
+                
+                } else {
+                    // const GReal rh = 0.6666666666666666 + (2*m::sqrt(1.3333333333333333 - m::pow(a,2))*m::cos(m::acos((3*m::sqrt(3)*(0.5925925925925926 - (2*m::pow(a,2))/3. + kzeta))/
+                    //        (2.*m::pow(1.3333333333333333 - m::pow(a,2),1.5)))/3.))/m::sqrt(3);
+                    // std::cout << "kharma horizon: " << rh << std::endl;
+                    return 0.6666666666666666 + (2*m::sqrt(1.3333333333333333 - m::pow(a,2))*m::cos(m::acos((3*m::sqrt(3)*(0.5925925925925926 - (2*m::pow(a,2))/3. + kzeta))/
+                           (2.*m::pow(1.3333333333333333 - m::pow(a,2),1.5)))/3.))/m::sqrt(3);
+                } 
             } else {
                 return 0.0;
             }
@@ -260,6 +298,12 @@ class CoordinateEmbedding {
         {
             return mpark::visit( [&](const auto& self) {
                 return self.a;
+            }, base);
+        }
+        KOKKOS_INLINE_FUNCTION GReal get_kzeta() const
+        {
+            return mpark::visit( [&](const auto& self) {
+                return self.kzeta;
             }, base);
         }
         GReal startx(int dir) const
@@ -277,7 +321,7 @@ class CoordinateEmbedding {
 
         KOKKOS_INLINE_FUNCTION bool is_ks() const
         {
-            return mpark::holds_alternative<SphKSCoords>(base);
+            return mpark::holds_alternative<SphKSCoords>(base) || mpark::holds_alternative<SphKZCoords>(base);
         }
         KOKKOS_INLINE_FUNCTION bool is_cart_minkowski() const
         {
@@ -589,6 +633,9 @@ class CoordinateEmbedding {
             } else if (mpark::holds_alternative<SphKSExtG>(base) ||
                        mpark::holds_alternative<SphBLExtG>(base)) {
                 SphBLExtG(get_a()).gcov_embed(Xembed, gcov_bl);
+            } else if (mpark::holds_alternative<SphKZCoords>(base) ||
+                       mpark::holds_alternative<SphBLKZCoords>(base)) {
+                SphBLKZCoords(get_a(), get_kzeta()).gcov_embed(Xembed, gcov_bl);
             }
 
             Real ucon_bl_fourv[GR_DIM];
@@ -599,10 +646,13 @@ class CoordinateEmbedding {
             Real ucon_base[GR_DIM];
             if (mpark::holds_alternative<SphKSCoords>(base)) {
                 mpark::get<SphKSCoords>(base).vec_from_bl(Xembed, ucon_bl_fourv, ucon_base);
+            } else if (mpark::holds_alternative<SphKZCoords>(base)) {
+                mpark::get<SphKZCoords>(base).vec_from_bl(Xembed, ucon_bl_fourv, ucon_base);
             } else if (mpark::holds_alternative<SphKSExtG>(base)) {
                 mpark::get<SphKSExtG>(base).vec_from_bl(Xembed, ucon_bl_fourv, ucon_base);
             } else if (mpark::holds_alternative<SphBLCoords>(base) ||
-                       mpark::holds_alternative<SphBLExtG>(base)) {
+                       mpark::holds_alternative<SphBLExtG>(base) ||
+                       mpark::holds_alternative<SphBLKZCoords>(base)) {
                 DLOOP1 ucon_base[mu] = ucon_bl_fourv[mu];
             }
             // Finally, apply any transform to native coordinates

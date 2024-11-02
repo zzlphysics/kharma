@@ -48,6 +48,7 @@
 #include "bondi.hpp"
 #include "explosion.hpp"
 #include "fm_torus.hpp"
+#include "kz_torus.hpp"
 #include "resize_restart.hpp"
 #include "resize_restart_kharma.hpp"
 #include "kelvin_helmholtz.hpp"
@@ -116,6 +117,8 @@ void KHARMA::ProblemGenerator(MeshBlock *pmb, ParameterInput *pin)
     // Everything
     } else if (prob == "torus") {
         status = InitializeFMTorus(rc, pin);
+    } else if (prob == "kz_torus") {
+        status = InitializeKZTorus(rc, pin);
     } else if (prob == "resize_restart") {
         status = ReadIharmRestart(rc, pin);
     } else if (prob == "resize_restart_kharma") {

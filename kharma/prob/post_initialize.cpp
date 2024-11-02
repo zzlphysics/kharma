@@ -86,10 +86,14 @@ void KHARMA::PostInitialize(ParameterInput *pin, Mesh *pmesh, bool is_restart)
 
             // If we're doing a torus problem or explicitly ask for it,
             // normalize the magnetic field according to the max density
-            bool is_torus = prob_name == "torus";
+            bool is_torus = prob_name == "torus" || prob_name == "kz_torus";
             if (pin->GetOrAddBoolean("b_field", "norm", is_torus)) {
                 NormalizeBField(md.get(), pin);
             }
+            // bool is_kz_torus = prob_name == "kz_torus";
+            // if (pin->GetOrAddBoolean("b_field", "norm", is_kz_torus)) {
+            //     NormalizeBField(md.get(), pin);
+            // }
         }
     }
 

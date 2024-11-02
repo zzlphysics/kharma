@@ -41,6 +41,7 @@
 #include "domain.hpp"
 #include "flux.hpp"
 #include "fm_torus.hpp"
+#include "kz_torus.hpp"
 #include "grmhd_functions.hpp"
 
 using namespace parthenon;
@@ -92,6 +93,7 @@ TaskStatus SeedBFieldType(MeshBlockData<Real> *rc, ParameterInput *pin, IndexDom
     std::string b_field_type = pin->GetString("b_field", "type");
     auto prob = pin->GetString("parthenon/job", "problem_id");
     bool is_torus = (prob == "torus");
+    bool is_kz_torus = (prob == "kz_torus");
     auto fname_fill = pin->GetOrAddString("resize_restart", "fname_fill", "none");
     const bool should_fill = !(fname_fill == "none");
     Real fx1min, fx1max, dx1, fx1min_ghost;
@@ -217,7 +219,7 @@ TaskStatus SeedBFieldType(MeshBlockData<Real> *rc, ParameterInput *pin, IndexDom
         Real A0 = pin->GetOrAddReal("b_field", "A0", 0.);
         Real min_A = pin->GetOrAddReal("b_field", "min_A", 0.2);
         // Init-specific loads
-        Real a, rin, rmax, gam, kappa, rho_norm, arg1, n, rs, rb;
+        Real a, kzeta, rin, rmax, l, gam, kappa, rho_norm, arg1, n, rs, rb;
         Real tilt = 0; // Needs to be initialized
         switch (Seed) {
         case BSeedType::sane:
@@ -229,12 +231,16 @@ TaskStatus SeedBFieldType(MeshBlockData<Real> *rc, ParameterInput *pin, IndexDom
             // Torus parameters
             rin = pin->GetReal("torus", "rin");
             rmax = pin->GetReal("torus", "rmax");
+            if (prob == "kz_torus") {
+                l = pin->GetReal("torus", "l");
+            }
             kappa = pin->GetReal("torus", "kappa");
             tilt = pin->GetReal("torus", "tilt") / 180. * M_PI;
             // Other things we need only for torus evaluation
             gam = pmb->packages.Get("GRMHD")->Param<Real>("gamma");
             rho_norm = pmb->packages.Get("GRMHD")->Param<Real>("rho_norm");
             a = G.coords.get_a();
+            kzeta = G.coords.get_kzeta();
             break;
         case BSeedType::orszag_tang_a:
             A0 = pin->GetReal("orszag_tang", "tscale");
@@ -278,6 +284,9 @@ TaskStatus SeedBFieldType(MeshBlockData<Real> *rc, ParameterInput *pin, IndexDom
                 if (is_torus) {
                     // Find rho at corner directly for torii
                     rho_av = fm_torus_rho(a, rin, rmax, gam, kappa, r, th) / rho_norm;
+                } else if (is_kz_torus) {
+                    // Find rho at corner directly for torii
+                    rho_av = kz_torus_rho(a, kzeta, rin, rmax, l, gam, kappa, r, th) / rho_norm;
                 } else {
                     // Use averages for anything else
                     // Avoid overstepping array bounds (but allow overstepping domain bounds)
