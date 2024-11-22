@@ -82,7 +82,8 @@ Real SumAt0(MeshData<Real> *md)
 template<Var var>
 Real SumAtEH(MeshData<Real> *md)
 {
-    const GReal r_eh = md->GetMeshPointer()->block_list[0]->coords.coords.get_horizon();
+    // const GReal r_eh = md->GetMeshPointer()->block_list[0]->coords.coords.get_horizon();
+    const GReal r_eh = md->GetMeshPointer()->packages.Get("Reductions")->Param<GReal>("domain_r_eh");
     return Reductions::ShellReduction<var, Real>(md, UserHistoryOperation::sum, r_eh);
 }
 template<Var var>
