@@ -519,6 +519,7 @@ void CancelBoundaryU3(MeshBlockData<Real> *rc, IndexDomain domain, bool coarse)
                     }
                 );
             }
+            member.team_barrier();
 
             // Sum the first rank of U3
             Real U3_sum = 0.;
@@ -592,6 +593,7 @@ void CancelBoundaryT3(MeshBlockData<Real> *rc, IndexDomain domain, bool coarse)
                     }
                 );
             }
+            member.team_barrier();
 
             // Sum the first rank of the angular momentum T3
             Real T3_sum = 0.;
