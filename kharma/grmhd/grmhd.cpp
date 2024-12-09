@@ -519,6 +519,7 @@ void CancelBoundaryU3(MeshBlockData<Real> *rc, IndexDomain domain, bool coarse)
                     }
                 );
             }
+            member.team_barrier();
 
             // Sum the first rank of U3
             Real U3_sum = 0.;
@@ -528,6 +529,7 @@ void CancelBoundaryU3(MeshBlockData<Real> *rc, IndexDomain domain, bool coarse)
                     local_result += isnan(P(m_p.U3, k, jf, i)) ? 0. : P(m_p.U3, k, jf, i);
                 }
             , sum_reducer);
+            member.team_barrier();
 
             // Subtract the average, floor, restore conserved vars, update ctop
             const Real U3_avg = U3_sum / (bi.ke - bi.ks + 1);
@@ -591,6 +593,7 @@ void CancelBoundaryT3(MeshBlockData<Real> *rc, IndexDomain domain, bool coarse)
                     }
                 );
             }
+            member.team_barrier();
 
             // Sum the first rank of the angular momentum T3
             Real T3_sum = 0.;
@@ -600,6 +603,7 @@ void CancelBoundaryT3(MeshBlockData<Real> *rc, IndexDomain domain, bool coarse)
                     local_result += isnan(U(m_u.U3, k, jf, i)) ? 0. : U(m_u.U3, k, jf, i);
                 }
             , sum_reducer);
+            member.team_barrier();
 
             // Calculate the average and subtract it
             const Real T3_avg = T3_sum / (bi.ke - bi.ks + 1);
