@@ -626,7 +626,7 @@ TaskStatus KBoundaries::FixFlux(MeshData<Real> *md)
     const IndexRange3 b1 = KDomain::GetRange(md, IndexDomain::interior, -1, 1);
 
     for (auto &pmb : pmesh->block_list) {
-        auto &rc = pmb->meshblock_data.Get();
+        auto &rc = pmb->meshblock_data.Get(md->StageName());
 
         for (int i = 0; i < BOUNDARY_NFACES; i++) {
             BoundaryFace bface = (BoundaryFace)i;
