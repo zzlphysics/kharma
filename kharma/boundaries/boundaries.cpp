@@ -192,7 +192,7 @@ std::shared_ptr<KHARMAPackage> KBoundaries::Initialize(ParameterInput *pin, std:
             // introduce divergence to the first physical zone.
             bool clean_face_B = pin->GetOrAddBoolean("boundaries", "clean_face_B_" + bname, (btype == "outflow"));
             params.Add("clean_face_B_"+bname, clean_face_B);
-            // Forcibly reconnect field loops that get trapped around the polar boundary.  Probably not needed anymore.
+            // Forcibly reconnect field loops that get trapped around the polar boundary
             bool reconnect_B3 = pin->GetOrAddBoolean("boundaries", "reconnect_B3_" + bname, false);
             params.Add("reconnect_B3_"+bname, reconnect_B3);
 
@@ -626,7 +626,7 @@ TaskStatus KBoundaries::FixFlux(MeshData<Real> *md)
     const IndexRange3 b1 = KDomain::GetRange(md, IndexDomain::interior, -1, 1);
 
     for (auto &pmb : pmesh->block_list) {
-        auto &rc = pmb->meshblock_data.Get();
+        auto &rc = pmb->meshblock_data.Get(md->StageName());
 
         for (int i = 0; i < BOUNDARY_NFACES; i++) {
             BoundaryFace bface = (BoundaryFace)i;
