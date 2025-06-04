@@ -83,3 +83,5 @@ make_args
 # Python files
 __pycache__/
 *.pyc
+
+output/
