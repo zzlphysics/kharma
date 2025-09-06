@@ -88,6 +88,8 @@ void KHARMA::PostInitialize(ParameterInput *pin, Mesh *pmesh, bool is_restart)
             // normalize the magnetic field according to the max density
             bool is_torus = prob_name == "torus" || prob_name == "kz_torus";
             if (pin->GetOrAddBoolean("b_field", "norm", is_torus)) {
+                // Sync to apply physical boundary conditions and fill B ghosts correctly
+                KHARMADriver::SyncAllBounds(md);
                 NormalizeBField(md.get(), pin);
             }
             // bool is_kz_torus = prob_name == "kz_torus";

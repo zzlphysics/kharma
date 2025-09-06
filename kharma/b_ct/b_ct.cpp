@@ -168,7 +168,17 @@ TaskStatus B_CT::BlockUtoP(MeshBlockData<Real> *rc, IndexDomain domain, bool coa
     // Return if we're not syncing U & P at all (e.g. edges)
     if (B_Uf.GetDim(4) == 0) return TaskStatus::complete;
 
-    const IndexRange3 bc = KDomain::GetRange(rc, domain, coarse);
+    // We need one cell inside of the domain, since it will be updated by the domain-face field
+    // this oversteps "interior" by a zone
+    IndexRange3 bct;
+    if (domain == IndexDomain::interior || domain == IndexDomain::entire) {
+        bct = KDomain::GetRange(rc, domain, coarse);
+    } else {
+        const BoundaryFace bface = KBoundaries::BoundaryFaceOf(domain);
+        const bool binner = KBoundaries::BoundaryIsInner(bface);
+        bct = KDomain::GetRange(rc, domain, (binner) ? 0 : -1, (binner) ? 1 : 0, coarse);
+    }
+    const IndexRange3 bc = bct;
 
     // Average the primitive vals to zone centers
     pmb->par_for("UtoP_B_center", bc.ks, bc.ke, bc.js, bc.je, bc.is, bc.ie,

@@ -1,25 +1,25 @@
-/* 
+/*
  *  File: seed_B.cpp
- *  
+ *
  *  BSD 3-Clause License
- *  
+ *
  *  Copyright (c) 2020, AFD Group at UIUC
  *  All rights reserved.
- *  
+ *
  *  Redistribution and use in source and binary forms, with or without
  *  modification, are permitted provided that the following conditions are met:
- *  
+ *
  *  1. Redistributions of source code must retain the above copyright notice, this
  *     list of conditions and the following disclaimer.
- *  
+ *
  *  2. Redistributions in binary form must reproduce the above copyright notice,
  *     this list of conditions and the following disclaimer in the documentation
  *     and/or other materials provided with the distribution.
- *  
+ *
  *  3. Neither the name of the copyright holder nor the names of its
  *     contributors may be used to endorse or promote products derived from
  *     this software without specific prior written permission.
- *  
+ *
  *  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
  *  AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
  *  IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
@@ -48,19 +48,20 @@ using namespace parthenon;
 
 /**
  * Perform a Parthenon MPI reduction.
- * Should only be used in initialization code, as the
- * reducer object & MPI comm are created on entry &
- * cleaned on exit
+ * Should only be used in initialization code, as it
+ * is very not fast.
  */
 template<typename T>
 inline T MPIReduce_once(T f, MPI_Op O)
 {
+    MPIBarrier();
     parthenon::AllReduce<T> reduction;
     reduction.val = f;
     reduction.StartReduce(O);
     // Wait on results
     while (reduction.CheckReduce() == parthenon::TaskStatus::incomplete);
     // TODO catch errors?
+    MPIBarrier();
     return reduction.val;
 }
 
@@ -116,7 +117,7 @@ TaskStatus SeedBFieldType(MeshBlockData<Real> *rc, ParameterInput *pin, IndexDom
     if constexpr (Seed == BSeedType::constant ||
                   Seed == BSeedType::monopole ||
                   Seed == BSeedType::orszag_tang ||
-                  Seed == BSeedType::wave || 
+                  Seed == BSeedType::wave ||
                   Seed == BSeedType::shock_tube)
     {
         // All custom B fields should set what they need of these.
@@ -340,7 +341,8 @@ TaskStatus SeedBFieldType(MeshBlockData<Real> *rc, ParameterInput *pin, IndexDom
                     // So, we preserve exact values in the no-tilt case.
                     A(V3, k, j, i) = Aphi;
                 }
-            });
+            }
+        );
 
         if (pkgs.count("B_CT")) {
             auto B_Uf = rc->PackVariables(std::vector<std::string>{"cons.fB"});
@@ -534,9 +536,6 @@ TaskStatus NormalizeBField(MeshData<Real> *md, ParameterInput *pin)
             std::cout << "Beta min post-norm: " << beta_min << std::endl;
         }
     }
-
-    // We've been initializing/manipulating P
-    Flux::MeshPtoU(md, IndexDomain::entire);
 
     EndFlag(); //NormBField
     return TaskStatus::complete;

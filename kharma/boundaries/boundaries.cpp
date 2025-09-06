@@ -716,6 +716,8 @@ TaskStatus KBoundaries::FixFlux(MeshData<Real> *md)
                     const Real gam = pmb->packages.Get("GRMHD")->Param<Real>("gamma");
                     const auto& G = pmb->coords;
                     const int nvar = F.GetDim(4);
+                    // Loci "outer" and "inner" refer to right and left.
+                    // At right edge, our "outer" toward domain is Loci "inner" as in left half
                     const Loci loc = (binner) ? Loci::outer_half : Loci::inner_half;
 
                     const IndexRange3 bi = KDomain::GetRange(rc, IndexDomain::interior, CC);
