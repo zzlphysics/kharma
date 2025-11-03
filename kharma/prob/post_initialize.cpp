@@ -128,6 +128,68 @@ void KHARMA::PostInitialize(ParameterInput *pin, Mesh *pmesh, bool is_restart)
             }
         } else {
             std::cout << "Restoring B field from primitive values" << std::endl;
+            
+            // Check if we have cached B field data from resize_restart
+            // The cache is Independent+OneCopy and survives Parthenon's reallocation
+            bool has_cache = false;
+            if (prob_name == "resize_restart") {
+                for (int i = 0; i < pmesh->GetNumMeshBlocksThisRank(); i++) {
+                    auto pmb = pmesh->block_list[i];
+                    auto rc = pmb->meshblock_data.Get("base");
+                    if (rc->IsAllocated("prims.B_cache")) {
+                        has_cache = true;
+                        break;
+                    }
+                }
+            }
+            
+            if (has_cache) {
+                std::cout << "Restoring prims.B from cache (resize_restart)..." << std::endl;
+                for (int i = 0; i < pmesh->GetNumMeshBlocksThisRank(); i++) {
+                    auto pmb = pmesh->block_list[i];
+                    auto rc = pmb->meshblock_data.Get("base");
+                    auto B_P = rc->Get("prims.B").data;
+                    auto B_cache = rc->Get("prims.B_cache").data;
+                    
+                    // B_cache is OneCopy (host-only), need to copy to device B_P
+                    // Get fresh host mirror with correct dimensions after reallocation
+                    auto B_cache_host = B_cache.GetHostMirrorAndCopy();
+                    
+                    // DeepCopy from host cache to device B_P
+                    // This will automatically handle the dimension matching
+                    B_P.DeepCopy(B_cache_host);
+                }
+                Kokkos::fence();
+                std::cout << "Restored prims.B from cache successfully" << std::endl;
+            }
+            
+            // DEBUG: Check prims.B before calling DangerousPtoU
+            // Uncomment for debugging magnetic field restoration issues
+            /*
+            if (MPIRank0()) {
+                std::cout << "DEBUG: Before DangerousPtoU - checking ALL blocks on rank 0:" << std::endl;
+                for (int iblock = 0; iblock < pmesh->GetNumMeshBlocksThisRank(); iblock++) {
+                    auto pmb = pmesh->block_list[iblock];
+                    auto rc = pmb->meshblock_data.Get("base");
+                    auto B_P_check = rc->Get("prims.B").data;
+                    std::cout << "  Block " << iblock << " (gid=" << pmb->gid << "):" << std::endl;
+                    std::cout << "    prims.B dims: " << B_P_check.GetDim(4) << " x " 
+                              << B_P_check.GetDim(1) << " x " << B_P_check.GetDim(2) << " x " << B_P_check.GetDim(3) << std::endl;
+                    if (B_P_check.GetDim(1) > 1) {
+                        auto B_P_host = B_P_check.GetHostMirrorAndCopy();
+                        const auto& kb = pmb->cellbounds.GetBoundsK(IndexDomain::interior);
+                        const auto& jb = pmb->cellbounds.GetBoundsJ(IndexDomain::interior);
+                        const auto& ib = pmb->cellbounds.GetBoundsI(IndexDomain::interior);
+                        std::cout << "    prims.B[0,ks,js,is]: " << B_P_host(0, kb.s, jb.s, ib.s) << std::endl;
+                        std::cout << "    prims.B[1,ks,js,is]: " << B_P_host(1, kb.s, jb.s, ib.s) << std::endl;
+                        std::cout << "    prims.B[2,ks,js,is]: " << B_P_host(2, kb.s, jb.s, ib.s) << std::endl;
+                    } else {
+                        std::cout << "    ERROR: prims.B NOT allocated!" << std::endl;
+                    }
+                }
+            }
+            */
+            
             if (pkgs.count("B_FluxCT")) {
                 B_FluxCT::MeshPtoU(md.get(), IndexDomain::entire);
             } else if (pkgs.count("B_CT")) {
