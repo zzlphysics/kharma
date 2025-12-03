@@ -163,7 +163,12 @@ void KHARMA::ProblemGenerator(MeshBlock *pmb, ParameterInput *pin)
     // so we have to give them something.
     // Problems with Dirichlet boundaries should just initialize the whole grid,
     // and the boundaries will be "frozen in" here (and re-frozen if B is added later)
-    Flux::BlockPtoU(rc.get(), IndexDomain::entire);
+    // 
+    // EXCEPTION: For resize_restart, we've already filled prims.B manually, so DON'T call BlockPtoU
+    // which might overwrite it from uninitialized cons.fB
+    if (prob != "resize_restart") {
+        Flux::BlockPtoU(rc.get(), IndexDomain::entire);
+    }
     KBoundaries::FreezeDirichletBlock(rc.get());
 
     EndFlag();

@@ -34,7 +34,9 @@
 
 #include "resize_restart.hpp"
 
+#include "b_ct.hpp"
 #include "b_flux_ct.hpp"
+#include "domain.hpp"
 #include "hdf5_utils.h"
 #include "kharma_utils.hpp"
 #include "interpolation.hpp"
@@ -43,6 +45,10 @@
 #include <sys/stat.h>
 #include <ctype.h>
 
+// IMPORTANT: This problem generator requires setting 'b_field/restart_from_prims = 1' in the parameter file.
+// This enables the B_cache mechanism that preserves magnetic field data during mesh reallocation.
+// Without this setting, the program will fail with "Couldn't find variable 'prims.B_cache'" error.
+//
 // TODO: The iharm3d restart format fails to record several things we must guess:
 // 1. Sometimes, even precise domain boundaries in native coordinates
 // 2. Which coordinate system was used
@@ -420,6 +426,25 @@ TaskStatus ReadIharmRestart(std::shared_ptr<MeshBlockData<Real>>& rc, ParameterI
 
     hdf5_close();
 
+    // DEBUG: Check HDF5 data content
+    // Uncomment for debugging HDF5 read issues
+    /*
+    if(MPIRank0() && pmb->gid == 0) {
+        std::cout << "DEBUG: Checking ptmp content after HDF5 read:" << std::endl;
+        std::cout << "  nmblock = " << nmblock << ", nfprim = " << nfprim << std::endl;
+        std::cout << "  First point (mk=0, mj=0, mi=0):" << std::endl;
+        std::cout << "    rho (var=0) = " << ptmp[0*nmblock] << std::endl;
+        std::cout << "    u   (var=1) = " << ptmp[1*nmblock] << std::endl;
+        std::cout << "    B1  (var=5) = " << ptmp[5*nmblock] << std::endl;
+        std::cout << "    B2  (var=6) = " << ptmp[6*nmblock] << std::endl;
+        std::cout << "    B3  (var=7) = " << ptmp[7*nmblock] << std::endl;
+        std::cout << "  Point (mk=0, mj=0, mi=10):" << std::endl;
+        std::cout << "    B1  = " << ptmp[5*nmblock + 10] << std::endl;
+        std::cout << "    B2  = " << ptmp[6*nmblock + 10] << std::endl;
+        std::cout << "    B3  = " << ptmp[7*nmblock + 10] << std::endl;
+    }
+    */
+
     if (MPIRank0()) std::cout << "Read!" << std::endl;
 
     // Get the arrays we'll be writing to
@@ -427,11 +452,17 @@ TaskStatus ReadIharmRestart(std::shared_ptr<MeshBlockData<Real>>& rc, ParameterI
     GridScalar rho = rc->Get("prims.rho").data;
     GridScalar u = rc->Get("prims.u").data;
     GridVector uvec = rc->Get("prims.uvec").data;
+    
+    // Get prims.B - it should be Derived+Restart, allocated like rho/u/uvec
     GridVector B_P = rc->Get("prims.B").data;
+    // Also get the cache - this is Independent and will survive reallocation
+    GridVector B_cache = rc->Get("prims.B_cache").data;
+    
     auto rho_host = rho.GetHostMirror();
     auto u_host = u.GetHostMirror();
     auto uvec_host = uvec.GetHostMirror();
     auto B_host = B_P.GetHostMirror();
+    auto B_cache_host = B_cache.GetHostMirror();
 
     // Interpolate on the host side & copy into the mirror Views
     // Nearest-neighbor interpolation is currently only used when grids exactly correspond -- otherwise, linear interpolation is used
@@ -451,6 +482,8 @@ TaskStatus ReadIharmRestart(std::shared_ptr<MeshBlockData<Real>>& rc, ParameterI
             u_host(k, j, i)   = ptmp[1*nmblock + mk*nmj*nmi + mj*nmi + mi];
             VLOOP uvec_host(v, k, j, i) = ptmp[(2+v)*nmblock + mk*nmj*nmi + mj*nmi + mi];
             VLOOP B_host(v, k, j, i) = ptmp[(5+v)*nmblock + mk*nmj*nmi + mj*nmi + mi];
+            // Also save to cache
+            VLOOP B_cache_host(v, k, j, i) = ptmp[(5+v)*nmblock + mk*nmj*nmi + mj*nmi + mi];
         }
     } else {
         // TODO real boundary flags. Repeat on any outflow/reflecting bounds
@@ -478,6 +511,8 @@ TaskStatus ReadIharmRestart(std::shared_ptr<MeshBlockData<Real>>& rc, ParameterI
             u_host(k, j, i) = Interpolation::linear(mi, mj, mk, nmi, nmj, nmk, del, &(ptmp[1*nmblock]));
             VLOOP uvec_host(v, k, j, i) = Interpolation::linear(mi, mj, mk, nmi, nmj, nmk, del, &(ptmp[(2+v)*nmblock]));
             VLOOP B_host(v, k, j, i) = Interpolation::linear(mi, mj, mk, nmi, nmj, nmk, del, &(ptmp[(5+v)*nmblock]));
+            // Also save to cache
+            VLOOP B_cache_host(v, k, j, i) = Interpolation::linear(mi, mj, mk, nmi, nmj, nmk, del, &(ptmp[(5+v)*nmblock]));
         }
     }
 
@@ -486,6 +521,8 @@ TaskStatus ReadIharmRestart(std::shared_ptr<MeshBlockData<Real>>& rc, ParameterI
     u.DeepCopy(u_host);
     uvec.DeepCopy(uvec_host);
     B_P.DeepCopy(B_host);
+    // Also save to cache (OneCopy, so only host-side)
+    B_cache.DeepCopy(B_cache_host);
     Kokkos::fence();
 
     // Delete our cache.  Only we ever used it, so we're safe here.

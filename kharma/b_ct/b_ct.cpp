@@ -102,8 +102,18 @@ std::shared_ptr<KHARMAPackage> B_CT::Initialize(ParameterInput *pin, std::shared
 
     // KHARMA now (vaguely) supports restarting from dump (.phdf) files.
     // To do so we need to read cell-centered primitive B and interpolate to faces, as we do with iharm3d restart files
+    // Just add Restart flag to ensure the field is allocated, keep it Derived for now
     if (pin->GetOrAddBoolean("b_field", "restart_from_prims", false)) {
         flags_prim.push_back(Metadata::Restart);
+        
+        // Add temporary cache for resize_restart to prevent data loss during reallocation
+        // prims.B is Derived and gets reallocated between ProblemGenerator and PostInitialize,
+        // losing any data we filled. This Independent cache survives the reallocation.
+        std::vector<MetadataFlag> flags_cache = {Metadata::Real, Metadata::Cell, Metadata::Independent, 
+                                                  Metadata::OneCopy, Metadata::Vector};
+        std::vector<int> s_vector_cache({NVEC});
+        Metadata m_cache = Metadata(flags_cache, s_vector_cache);
+        pkg->AddField("prims.B_cache", m_cache);
     }
 
     std::vector<int> s_vector({NVEC});
