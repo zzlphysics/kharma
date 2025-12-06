@@ -110,11 +110,20 @@ void ReadIharmRestartHeader(std::string fname, ParameterInput *pin)
 
     // Anything always necessary for spherical coordinates
     double a, hslope;
+    double kzeta;
+    double l;
     bool file_in_spherical = false;
+    bool file_in_kz_spherical = false;
     if (hdf5_exists("a")) {
         hdf5_read_single_val(&a, "a", H5T_IEEE_F64LE);
         hdf5_read_single_val(&hslope, "hslope", H5T_IEEE_F64LE);
         file_in_spherical = true;
+
+        if (hdf5_exists("kzeta")) {
+            file_in_kz_spherical = true;
+            hdf5_read_single_val(&kzeta, "kzeta", H5T_IEEE_F64LE);
+            // hdf5_read_single_val(&l, "l", H5T_IEEE_F64LE);
+        }
     }
 
     // Anything else
@@ -203,13 +212,22 @@ void ReadIharmRestartHeader(std::string fname, ParameterInput *pin)
     // Set the coordinate system to match the restart file *even if we're resizing*
     // Mapping to new spins/systems is theoretically fine, but we do not want to
     // do this in any applications yet
-    if (file_in_spherical) {
+    if (file_in_spherical && !file_in_kz_spherical) {
         pin->SetReal("coordinates", "a", a);
         pin->SetReal("coordinates", "hslope", hslope);
 
         // Sadly restarts did not record MKS vs FMKS
         // Guess FMKS if not specified in parameter file
         pin->SetString("coordinates", "base", "spherical_ks");
+        if (!pin->DoesParameterExist("coordinates", "transform")) {
+            pin->SetString("coordinates", "transform", "funky");
+        }
+    } else if (file_in_kz_spherical) {
+        pin->SetReal("coordinates", "a", a);
+        pin->SetReal("coordinates", "kzeta", kzeta);
+        // pin->SetReal("coordinates", "l", l);
+        pin->SetReal("coordinates", "hslope", hslope);
+        pin->SetString("coordinates", "base", "spherical_kz");
         if (!pin->DoesParameterExist("coordinates", "transform")) {
             pin->SetString("coordinates", "transform", "funky");
         }
