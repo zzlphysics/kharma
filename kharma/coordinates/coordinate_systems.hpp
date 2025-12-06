@@ -206,7 +206,7 @@ class SphKZCoords {
             const GReal rho2 = r*r + a*a*cos2;
             const GReal rho2r = r*rho2;
             const GReal mre = 2.0 * r*r + kzeta;
-            const GReal mrre = -2.0*r*r*r*r - 3.0*r*r*kzeta + a*a*(2.0*r*r - kzeta)*cos2;
+            // const GReal mrre = -2.0*r*r*r*r - 3.0*r*r*kzeta + a*a*(2.0*r*r - kzeta)*cos2;
 
 
             gcov[0][0] = -1.0 + mre/rho2r;

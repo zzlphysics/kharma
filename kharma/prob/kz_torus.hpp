@@ -43,7 +43,7 @@ KOKKOS_INLINE_FUNCTION Real lnh_calc(const GReal a, const Real kzeta, const Real
         Real cth = m::cos(th);
         Real sth2 = sth*sth;
         Real cth2 = 1.0 - sth2;
-        Real s2th = 2.0*sth*cth;
+        // Real s2th = 2.0*sth*cth;
         Real c2th = m::cos(2.0*th);
         Real cscth = 1.0/sth;
         Real cotth = cth/sth;
@@ -67,7 +67,7 @@ KOKKOS_INLINE_FUNCTION Real lnh_calc(const GReal a, const Real kzeta, const Real
         Real cth_in = m::cos(th_in);
         Real sth2_in = sth_in*sth_in;
         Real cth2_in = 1.0 - sth2_in;
-        Real s2th_in = 2.0*sth_in*cth_in;
+        // Real s2th_in = 2.0*sth_in*cth_in;
         Real c2th_in = m::cos(2.0*th_in);
         Real cscth_in = 1.0/sth_in;
         Real cotth_in = cth_in/sth_in;
