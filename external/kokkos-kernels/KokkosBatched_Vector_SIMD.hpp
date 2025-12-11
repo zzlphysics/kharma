@@ -7,7 +7,9 @@
 #include "KokkosBatched_Vector.hpp"
 #include "KokkosKernels_Macros.hpp"
 
-#if defined(__CUDA_ARCH__) || defined(__HIP_DEVICE_COMPILE__)
+#if defined(__CUDA_ARCH__) || defined(__HIP_DEVICE_COMPILE__) || defined(__CUDACC__)
+// 当通过 NVCC 编译（定义了 __CUDACC__）时，避免启用 AVX SIMD 路径，
+// 否则会在使用 GCC 的 <immintrin.h>/<amxtileintrin.h> 时触发 NVCC 不支持的 AMX 内建函数。
 #undef __KOKKOSBATCHED_ENABLE_AVX__
 #else
 // compiler bug with AVX in some architectures
