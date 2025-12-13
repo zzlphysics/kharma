@@ -353,7 +353,12 @@ KOKKOS_INLINE_FUNCTION int u_to_p<Type::kastaun>(const GRCoordinates& G, const V
         const Real rho = P(m_p.RHO, k, j, i);
         const Real u = P(m_p.UU, k, j, i);
         const Real uvec[NVEC] = {P(m_p.U1, k, j, i), P(m_p.U2, k, j, i), P(m_p.U3, k, j, i)};
-        const Real B_P[NVEC] = {P(m_p.B1, k, j, i), P(m_p.B2, k, j, i), P(m_p.B3, k, j, i)};
+        Real B_P[NVEC] = {0., 0., 0.};
+        if (m_p.B1 >= 0) {
+            B_P[0] = P(m_p.B1, k, j, i);
+            B_P[1] = P(m_p.B2, k, j, i);
+            B_P[2] = P(m_p.B3, k, j, i);
+        }
         Real rho_ut = 0., T[GR_DIM] = {0.};
         GRMHD::p_to_u_mhd(G, rho, u, uvec, B_P, gam, k, j, i, rho_ut, T);
         const Real bad_vel_tolerance = 200 * tol;
